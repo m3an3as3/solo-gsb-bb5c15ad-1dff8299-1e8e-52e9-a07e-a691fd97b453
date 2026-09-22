@@ -1,0 +1,8 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+# B008: FastAPI Depends()/Query() 出现在默认参数是框架标准用法
+# UP045: 保留 Optional[...] 写法，兼容较旧类型检查习惯
+ignore = ["B008", "UP045", "EXE001"]

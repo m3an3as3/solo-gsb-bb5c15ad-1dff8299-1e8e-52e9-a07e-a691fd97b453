@@ -1,0 +1,84 @@
+### 证据批次封存 API 示例请求（VS Code REST Client / JetBrains HTTP Client）
+### 约定：第 0 批 prev_hash 固定为 64 个 0
+
+@host = http://localhost:8000
+@source = probe-demo
+@genesis = 0000000000000000000000000000000000000000000000000000000000000000
+
+### 健康检查
+GET {{host}}/health
+
+### 提交批次 0（注意：返回的 batch_hash 要作为批次 1 的 prev_hash）
+POST {{host}}/batches
+Content-Type: application/json
+
+{
+  "source_id": "{{source}}",
+  "batch_no": 0,
+  "prev_hash": "{{genesis}}",
+  "payload": {"event": "login", "user": "alice", "ts": "2026-09-22T10:00:00Z"}
+}
+
+### 幂等重试：与上一条完全相同 -> 200, duplicate=true
+POST {{host}}/batches
+Content-Type: application/json
+
+{
+  "source_id": "{{source}}",
+  "batch_no": 0,
+  "prev_hash": "{{genesis}}",
+  "payload": {"event": "login", "user": "alice", "ts": "2026-09-22T10:00:00Z"}
+}
+
+### 提交批次 1（prev_hash 替换为批次 0 实际返回的 batch_hash）
+### 乱序提交批次 2（批次 1 缺失时只暂存，不封存）
+POST {{host}}/batches
+Content-Type: application/json
+
+{
+  "source_id": "{{source}}",
+  "batch_no": 2,
+  "prev_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+  "payload": {"event": "file_write", "path": "/var/log/a.log"}
+}
+
+### 查询缺口
+GET {{host}}/sources/{{source}}/gaps
+
+### 冲突：同一 batch_no 提交不同内容 -> 409 BATCH_CONFLICT
+POST {{host}}/batches
+Content-Type: application/json
+
+{
+  "source_id": "{{source}}",
+  "batch_no": 0,
+  "prev_hash": "{{genesis}}",
+  "payload": {"event": "login", "user": "mallory", "ts": "2026-09-22T10:00:00Z"}
+}
+
+### 封存连续链（缺省 sealed_through = 当前连续链头）
+POST {{host}}/seals
+Content-Type: application/json
+
+{"source_id": "{{source}}"}
+
+### 取批次 0 的包含证明
+GET {{host}}/sources/{{source}}/batches/0/proof
+
+### 离线校验证明（batch_hash / merkle_root / proof_path 来自上一步响应）
+POST {{host}}/verify
+Content-Type: application/json
+
+{
+  "batch_hash": "<上一步 batch_hash>",
+  "merkle_root": "<封存返回 merkle_root>",
+  "proof_path": [
+    {"sibling": "<hex>", "position": "right"}
+  ]
+}
+
+### 服务端查库校验（最简单）
+POST {{host}}/verify
+Content-Type: application/json
+
+{"source_id": "{{source}}", "batch_no": 0}

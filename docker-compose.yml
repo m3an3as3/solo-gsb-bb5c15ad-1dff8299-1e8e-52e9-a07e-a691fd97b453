@@ -1,0 +1,16 @@
+services:
+  evidence-seal:
+    build: .
+    image: evidence-seal:latest
+    container_name: evidence-seal
+    ports:
+      - "8000:8000"
+    environment:
+      # 数据卷内的 SQLite 文件，启动无需任何外部账号/服务
+      EVIDENCE_DB_PATH: /data/evidence.db
+    volumes:
+      - evidence-data:/data
+    restart: unless-stopped
+
+volumes:
+  evidence-data:
